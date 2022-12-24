@@ -1,0 +1,133 @@
+---
+title: 'Machine Learning and Data Mining project: Leaf identification.'
+author: "Sirianne MADON KENGNE"
+date: "`r Sys.Date()`"
+output: pdf_document
+---
+## Topic:
+
+The goal is to propose a method for leaf identification based on the provided leaf attributes and using a proper unsupervised or supervised learning tool.
+
+```{r}
+library(ggplot2)
+library(cowplot)
+library(randomForest)
+```
+
+
+Let's read the data and see the first 6 rows.
+```{r}
+data <- read.csv("leaf.csv", header=FALSE)
+head(data)
+```
+Let's give proper columns names to our data
+```{r}
+colnames(data) <- c("Species","Specimen Number","Eccentricity","AspectRatio","Elongation","Solidity","Stochastic_Convexity","Isoperimetric_Factor","Maximal_Indentation_Depth","Lobedness","Average_Intensity","Average_Contrast","Smoothness","Third_moment","Uniformity","Entropy")
+names(data)
+```
+Let's give the proper name of species
+```{r}
+last_species_names<-c(1:15,22:36)
+new_species_names<-c("Quercus suber","Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur",
+     "Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens",
+     "Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba",16:21,
+     "Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica",
+     "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica",
+     "Magnolia grandiflora","Geranium sp.")
+for(i in last_species_names){
+  data[data$Species == i,]$Species <-new_species_names[i] 
+} 
+unique(data$Species)
+```
+
+let's delete the columns 2 because it is useless for what we want to do
+```{r}
+dat<-data[,-2]
+head(dat)
+```
+```{r}
+dat$Species <- as.factor(dat$Species)
+str(dat)
+```
+
+Let's run the random forest
+```{r}
+#write.csv(dat, "mydata.csv")
+set.seed(42)
+model <- randomForest(Species ~ ., data=dat, proximity=TRUE)
+str(model)
+```
+We know want to plot the out_of_bag  rate and the error rate foreach species in function of the numbers of tree in our random forest. We first put our model data in form of 2 columns(tree, error).
+```{r}
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba","Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica", "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica","Magnolia grandiflora","Geranium sp.")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=31),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+str(oob.error.data)
+#head(oob.error.data)
+```
+
+Know we do the plot.
+```{r}
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+# ggsave("oob_error_rate_1000_trees.pdf")
+
+```
+
+```{r}
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=11),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+```
+
+```{r}
+model <- randomForest(Species ~ ., data=dat, ntree=1000, proximity=TRUE)
+
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=11),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+
+```
+
+```{r}
+## If we want to compare this random forest to others with different values for
+## mtry (to control how many variables are considered at each step)...
+oob.values <- vector(length=10)
+for(i in 1:10) {
+  temp.model <- randomForest(Species ~ ., data=dat, mtry=i, ntree=1000)
+  oob.values[i] <- temp.model$err.rate[nrow(temp.model$err.rate),1]
+}
+oob.values
+
+```
+
+```{r}
+model <- randomForest(Species ~ ., data=dat,mtry=2, ntree=1000, proximity=TRUE)
+
+clas<-c("Quercus suber" ,"Salix atrocinera")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=3),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+
+```
+
+```{r}
+
+```
+
+
+
+

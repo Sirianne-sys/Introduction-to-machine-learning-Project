@@ -1,0 +1,360 @@
+---
+title: "Leaf identification"
+author: "MADON KENGNE Sirianne"
+date: "2022-12-12"
+output:
+  pdf_document: default
+  html_document:
+    df_print: paged
+---
+
+## Topic:
+
+The goal is to propose a method for leaf identification based on the provided leaf attributes and using a proper unsupervised or supervised learning tool.
+
+```{r}
+library(ggplot2)
+library(cowplot)
+library(randomForest)
+```
+
+
+Let's read the data and see the first 6 rows.
+```{r}
+data <- read.csv("leaf.csv", header=FALSE)
+head(data)
+```
+Let's give proper columns names to our data
+```{r}
+colnames(data) <- c("Species","Specimen Number","Eccentricity","AspectRatio","Elongation","Solidity","Stochastic_Convexity","Isoperimetric_Factor","Maximal_Indentation_Depth","Lobedness","Average_Intensity","Average_Contrast","Smoothness","Third_moment","Uniformity","Entropy")
+names(data)
+```
+Let's give the proper name of species
+```{r}
+last_species_names<-c(1:15,22:36)
+new_species_names<-c("Quercus suber","Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur",
+     "Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens",
+     "Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba",16:21,
+     "Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica",
+     "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica",
+     "Magnolia grandiflora","Geranium sp.")
+for(i in last_species_names){
+  data[data$Species == i,]$Species <-new_species_names[i] 
+} 
+unique(data$Species)
+```
+
+let's delete the columns 2 because it is useless for what we want to do
+```{r}
+dat<-data[,-2]
+head(dat)
+```
+
+```{r}
+dat$Species <- as.factor(dat$Species)
+str(dat)
+```
+
+```{r}
+summary(dat)
+```
+
+we will check the number available for each species
+```{r}
+table(dat$Species)
+```
+
+Let partition our data by creating two independent samples.
+```{r}
+set.seed(123)
+ind<-sample(2, nrow(dat), replace=TRUE, prob=c(0.7,0.3))
+train<-dat[ind==1,]
+test<-dat[ind==2,]
+```
+
+Let's run the random forest
+```{r}
+set.seed(123)
+model <- randomForest(Species ~ ., data=train, ntree=500, mtry=8)
+#model
+```
+
+```{r}
+model
+```
+
+
+```{r}
+attributes(model)
+```
+
+Let's start prediction and come out with the confusion matrix on train data
+```{r}
+library(caret)
+prediction1 <- predict(model, train)
+print(head(prediction1))
+```
+
+```{r}
+print(head(train$Species))
+```
+
+Let's do a confusion matrix
+```{r}
+#it is in the caret package
+#confusionMatrix(prediction1,train$Species)
+```
+
+Let's start prediction and come out with the confusion matrix on test data
+```{r}
+#it is in the caret package
+prediction2 <- predict(model, test)
+#str(train$Species)==str(test$Species)
+#confusionMatrix(prediction2,test$Species)
+length(prediction2)
+#plot ( prediction2 , test$Species )
+```
+```{r}
+#print(head(test$Species))
+#confusionMatrix(prediction2,test$Species)
+#length(test$Species)
+conf_matrix<-confusionMatrix(prediction2, test$Species, mode = "everything", positive="1") #library(caret)
+#conf_matrix
+```
+
+```{r}
+#accuracy
+conf_matrix$overall
+```
+
+```{r}
+#F1 score
+conf_matrix$byClass[,7]
+```
+
+let's find the error rate
+
+```{r}
+set.seed(123)
+cv_results <- train(Species ~ ., data = train, method = "rf", trControl = trainControl(method = "cv", number = 10))
+cv_results
+```
+
+
+```{r}
+library(pROC)
+predicted_labels <- as.numeric(predict(model, test))
+roc_curve <- multiclass.roc(response = test$Species, predictor = predicted_labels)
+```
+
+```{r}
+auc <- roc_curve$auc
+auc
+```
+```{r}
+importance(model)
+```
+
+```{r}
+varImpPlot(model)
+```
+
+```{r}
+set.seed(123)
+cv_results1 <- train(Species ~Solidity+AspectRatio+Elongation+Eccentricity+Isoperimetric_Factor+Maximal_Indentation_Depth+Lobedness+Entropy+Uniformity, data = train, method = "rf", trControl = trainControl(method = "cv", number = length(train)))
+cv_results1
+```
+
+```{r}
+set.seed(123)
+model1 <- randomForest(Species ~Solidity+AspectRatio+Elongation+Eccentricity+Isoperimetric_Factor+Maximal_Indentation_Depth+Lobedness+Entropy+Uniformity, data=train, ntree=1000, mtry=9)
+prediction1 <- predict(model1, test)
+conf_matrix1<-confusionMatrix(prediction1, test$Species, mode = "everything", positive="1") #library(caret)
+conf_matrix1$overall
+```
+
+
+
+# Here is the end of this tuturial. Down belong to another tutorial.
+
+
+
+```{r}
+library(MLmetrics)
+```
+
+
+```{r}
+exists("f1_score", envir = as.environment("package:caret"))
+```
+
+
+
+
+```{r}
+model
+```
+
+
+```{r}
+#tuning mtry
+tuneRF(train[,-1], train[,1], stepFactor=0.5, plot=TRUE )
+
+```
+
+```{r}
+set.seed(12345)
+model <- randomForest(Species ~ ., data=train, ntree=200, mtry=9, importance=TRUE, proximity=TRUE)
+model
+```
+
+```{r}
+prediction2 <- predict(model, test)
+confusionMatrix(prediction2,test$Species)
+```
+
+
+```{r}
+#histogram of numbers of nodes
+hist(treesize(model), main="no of nodes",col="green")
+```
+```{r}
+#Variance importance
+varImpPlot(model)
+```
+
+```{r}
+#Variance importance
+varImpPlot(model, sort = T, n.var=10, main = "top10-variableimportance")
+```
+
+```{r}
+#Variance importance
+importance(model)
+```
+
+```{r}
+#Variance actually used by the random forest
+varUsed(model)
+```
+
+```{r}
+#partial dependence plot
+#partialPlot(model,train, solidity, "Quercus suber")
+```
+
+```{r}
+getTree(model,1, labelVar = TRUE)
+```
+
+```{r}
+MDSplot(model, train$Species)
+```
+
+# Here is the end of this tuturial. Down belong to another tutorial.
+
+
+
+
+
+
+We know want to plot the out_of_bag  rate and the error rate for each species in function of the numbers of tree in our random forest. We first put our model data in form of 2 columns(tree, error).
+```{r}
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba","Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica", "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica","Magnolia grandiflora","Geranium sp.")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=31),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+str(oob.error.data)
+#head(oob.error.data)
+```
+
+Know we do the plot.
+```{r}
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+# ggsave("oob_error_rate_1000_trees.pdf")
+
+```
+
+```{r}
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=11),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+```
+
+```{r}
+model <- randomForest(Species ~ ., data=dat, ntree=1000, proximity=TRUE)
+
+clas<-c("Quercus suber" ,"Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur","Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens","Tilia tomentosa")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=11),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+
+```
+
+```{r}
+## If we want to compare this random forest to others with different values for
+## mtry (to control how many variables are considered at each step)...
+oob.values <- vector(length=10)
+for(i in 1:10) {
+  temp.model <- randomForest(Species ~ ., data=dat, mtry=i, ntree=1000)
+  oob.values[i] <- temp.model$err.rate[nrow(temp.model$err.rate),1]
+}
+oob.values
+
+```
+
+```{r}
+model <- randomForest(Species ~ ., data=dat,mtry=2, ntree=1000, proximity=TRUE)
+
+clas<-c("Quercus suber" ,"Salix atrocinera")
+
+err<-c(model$err.rate[,"OOB"])
+for (i in clas) err<-c(err,model$err.rate[,i])
+
+oob.error.data <- data.frame(Trees=rep(1:nrow(model$err.rate), times=3),Type=rep(c("OOB",clas), each=nrow(model$err.rate)),Error=err)
+ggplot(data=oob.error.data, aes(x=Trees, y=Error)) + geom_line(aes(color=Type))
+
+```
+
+```{r}
+attributes(model)
+```
+```{r}
+model$confusion
+
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+# Fit a random forest model
+#model <- randomForest(x, y, ntree = 100, oob_prediction = TRUE)
+
+# Collect OOB predictions
+oob_predictions <- predict(model, data=dat[-1])#, type = "OOB")
+#cm = table(dat[1:10,1], oob_predictions)
+oob_predictions
+# Save OOB predictions in a data frame
+#oob_predictions_df <- data.frame(observation = 1:nrow(x), oob_prediction = oob_predictions)
+
+```
+

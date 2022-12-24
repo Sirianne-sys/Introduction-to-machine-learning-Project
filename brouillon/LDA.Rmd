@@ -1,0 +1,152 @@
+---
+title: "LDA"
+author: "MADON KENGNE Sirianne"
+date: "2022-12-19"
+output: html_document
+---
+
+
+## Topic:
+
+The goal is to propose a method for leaf identification based on the provided leaf attributes and using a proper unsupervised or supervised learning tool.
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+```
+
+```{r}
+#install.packages("mlr", dependencies = TRUE)
+library(mlr)
+```
+
+```{r}
+#library(ggplot2)
+#library(cowplot)
+#library(randomForest)
+```
+
+
+Let's read the data and see the first 6 rows.
+```{r}
+data <- read.csv("leaf.csv", header=FALSE)
+#head(data)
+```
+Let's give proper columns names to our data
+```{r}
+colnames(data) <- c("Species","Specimen Number","Eccentricity","AspectRatio","Elongation","Solidity","Stochastic_Convexity","Isoperimetric_Factor","Maximal_Indentation_Depth","Lobedness","Average_Intensity","Average_Contrast","Smoothness","Third_moment","Uniformity","Entropy")
+
+#names(data)
+```
+Let's give the proper name of species
+```{r}
+last_species_names<-c(1:15,22:36)
+new_species_names<-c("Quercus suber","Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur",
+     "Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens",
+     "Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba",16:21,
+     "Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica",
+     "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica",
+     "Magnolia grandiflora","Geranium sp.")
+for(i in last_species_names){
+  data[data$Species == i,]$Species <-new_species_names[i] 
+} 
+
+#unique(data$Species)
+```
+
+let's delete the columns 2 because it is useless for what we want to do
+```{r}
+dat<-data[,-2]
+#head(dat)
+```
+
+
+```{r}
+dat$Species <- as.factor(dat$Species)
+#str(dat)
+```
+
+
+```{r}
+#summary(dat)
+```
+
+we will check the number available for each species
+```{r}
+#table(dat$Species)
+```
+
+Let partition our data by creating two independent samples.
+```{r}
+set.seed(123)
+ind<-sample(2, nrow(dat), replace=TRUE, prob=c(0.7,0.3))
+training<-dat[ind==1,]
+testing<-dat[ind==2,]
+```
+
+
+```{r}
+#create a learner
+#set.seed(12345)
+#dataTask <- makeClassifTask(data = train, target = "Species")
+#qda <- makeLearner("classif.qda")
+#qdaModel <- train(qda, dataTask)
+```
+
+```{r}
+library(klaR)
+library(psych)
+library(MASS)
+```
+
+# Linear Discriminant Analysis (LDA) 
+
+```{r}
+#https://www.r-bloggers.com/2021/05/linear-discriminant-analysis-in-r/
+linear <- lda(Species~., training)
+linear
+
+```
+
+```{r}
+#prediction
+p <- predict(linear, testing)
+p1 <- predict(linear, training)$class
+#tab <- table(Predicted = p1, Actual = training$Species)
+#sum(diag(tab))/sum(tab)
+```
+
+
+```{r}
+p2 <- predict(linear, testing)$class
+tab1 <- table(Predicted = p2, Actual = testing$Species)
+#sum(diag(tab1))/sum(tab1)
+tab1
+```
+
+
+```{r}
+accuracy <- mean(p2== testing$Species)
+accuracy
+```
+
+```{r}
+library(caret)
+confusionMatrix(p2, testing$Species, mode = "everything", positive="1") #library(caret)
+```
+
+```{r}
+#model
+library(pROC) #for ROC curve
+
+roc_lda = multiclass.roc(response = testing$Species,
+              predictor = p$posterior) #the second col. contains the probabilities for the yes category
+
+auc(roc_lda)
+```
+
+```{r}
+set.seed(123)
+cv_results <- train(Species ~ ., data = train, method = "lda", trControl = trainControl(method = "cv", number = 10))
+cv_results
+```

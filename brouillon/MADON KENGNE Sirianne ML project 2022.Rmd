@@ -1,0 +1,279 @@
+---
+title: "Leaf identification"
+author: "MADON KENGNE Sirianne"
+date: "2022-12-22"
+output: html_document
+---
+
+# Topic:
+
+The goal is to propose a method for leaf identification based on the provided leaf attributes and using a proper unsupervised or supervised learning tool.
+
+## Data cleaning and Preprocessing
+
+Let's read the data and see the first 6 rows.
+```{r}
+data <- read.csv("leaf.csv", header=FALSE)
+#head(data)
+```
+Let's give proper columns names to our data
+```{r}
+colnames(data) <- c("Species","Specimen Number","Eccentricity","AspectRatio","Elongation","Solidity","Stochastic_Convexity","Isoperimetric_Factor","Maximal_Indentation_Depth","Lobedness","Average_Intensity","Average_Contrast","Smoothness","Third_moment","Uniformity","Entropy")
+#names(data)
+```
+Let's give the proper name of species
+```{r}
+last_species_names<-c(1:15,22:36)
+new_species_names<-c("Quercus suber","Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur",
+     "Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens",
+     "Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba",16:21,
+     "Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica",
+     "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica",
+     "Magnolia grandiflora","Geranium sp.")
+for(i in last_species_names){
+  data[data$Species == i,]$Species <-new_species_names[i] 
+} 
+#unique(data$Species)
+```
+
+let's delete the columns 2 because it is useless for what we want to do
+```{r}
+dat<-data[,-2]
+#head(dat)
+```
+
+```{r}
+dat$Species <- as.factor(dat$Species)
+#str(dat)
+```
+
+```{r}
+#summary(dat)
+```
+
+we will check the number available for each species
+```{r}
+#table(dat$Species)
+```
+
+## Data partition
+
+Let partition our data by creating two independent samples.
+```{r}
+set.seed(123)
+ind<-sample(2, nrow(dat), replace=TRUE, prob=c(0.7,0.3))
+train<-dat[ind==1,]
+test<-dat[ind==2,]
+```
+
+## Random forest
+```{r}
+library(randomForest)
+library(tidyverse)
+library(caret) # prediction, confusion matrix
+library(pROC) # Receiver Operating Characteristic (ROC) curve and the Area Under the ROC curve (AUC)
+```
+
+Let's perform the 10-fold cross validation to evaluate the general error of the random forest
+```{r}
+set.seed(123)
+cv_rf_results <- train(Species ~ ., data = train, method = "rf", trControl = trainControl(method = "cv", number = 10))
+cv_rf_results
+```
+
+Let's run the random forest
+```{r}
+set.seed(123)
+rf_model <- randomForest(Species ~ ., data=train, ntree=500, mtry=8)
+#model
+```
+Let's start prediction and come out with the confusion matrix
+```{r}
+#prediction
+rf_prediction <- predict(rf_model , test)
+
+#confusion matrix
+rf_conf_matrix<-confusionMatrix(rf_prediction, test$Species, mode = "everything", positive="1") #library(caret)
+#rf_conf_matrix
+```
+
+```{r}
+#accuracy
+rf_conf_matrix$overall
+```
+
+```{r}
+#F1 score
+rf_conf_matrix$byClass[,7]
+```
+
+Let compute the Area Under the curve
+```{r}
+predicted_labels <- as.numeric(predict(rf_model , test))
+rf_roc_curve <- multiclass.roc(response = test$Species, predictor = predicted_labels)
+```
+
+```{r}
+rf_auc <- rf_roc_curve$auc
+rf_auc
+```
+
+## Linear Discriminant Analysis (LDA) 
+
+```{r}
+#library(klaR)
+#library(psych)
+library(MASS)
+```
+
+Let's evaluate the performance of LDA
+```{r}
+set.seed(123)
+cv_lda_results <- train(Species ~ ., data = train, method = "lda", trControl = trainControl(method = "cv", number = 10))
+cv_lda_results
+```
+
+```{r}
+#https://www.r-bloggers.com/2021/05/linear-discriminant-analysis-in-r/
+set.seed(123)
+lda_model <- lda(Species~., train)
+#lda_model
+```
+
+```{r}
+#prediction
+lda_prediction <- predict(lda_model, test)
+```
+
+
+```{r}
+#accuracy
+p2 <- lda_prediction$class
+tab1 <- table(Predicted = p2, Actual = test$Species)
+accuracy <-sum(diag(tab1))/sum(tab1)
+# or accuracy <- mean(p2== testing$Species)
+accuracy
+#tab1
+```
+
+```{r}
+#confusion matrix
+lda_conf_matrix<-confusionMatrix(p2, test$Species, mode = "everything", positive="1") 
+```
+
+```{r}
+#accuracy with confusion matrix
+lda_conf_matrix$overall
+```
+
+```{r}
+#F1 score
+lda_conf_matrix$byClass[,7]
+```
+
+```{r}
+roc_lda <- multiclass.roc(response = test$Species,predictor = lda_prediction$posterior) #the second col. contains the probabilities for the yes category
+auc_lda<-auc(roc_lda)
+auc_lda
+```
+
+```{r}
+all_classes<-as.factor(c( "Acca sellowiana", "Acer palmatum", "Alnus sp.",  "Arisarum vulgare", "Betula pubescens", "Bougainvillea sp.",  "Buxus sempervirens ", "Castanea sativa", "Celtis sp.", "Corylus avellana", "Crataegus monogyna", "Erodium sp." , "Euonymus japonicus" , "Geranium sp.", "Hydrangea sp.","Ilex aquifolium", "Ilex perado ssp. azorica" ,"Magnolia grandiflora ","Magnolia soulangeana", "Nerium oleander", "Podocarpus sp.", "Populus alba" ,"Populus nigra ", "Primula vulgaris ", "Pseudosasa japonica", 
+"Quercus robur" ,"Quercus suber" ,'Salix atrocinera'  , "Tilia tomentosa", "Urtica dioica"))
+
+rf_f1score<-c(0.2857143, 0.8888889, 0.6666667 ,1.0000000, 0.5714286  ,  0.6666667, 1.0000000, 1.0000000 ,
+ 0.6666667, 0.8888889, 1.0000000, 0.8571429, 0.3333333, 0.5000000  , 0.4444444, 0.6666667  , 0.400000, 0.6666667, 0.4444444, 1.0000000, 1.0000000, 0.6666667 , 0.6666667, 0.8000000  , 1.0000000, 1.0000000, 0.5454545, 0.8000000, 0.8888889, 1.0000000)
+
+
+lda_f1score<-c(0.4444444, 1.0000000 ,0.6666667, 0 ,0.8888889, 0.6666667 ,0.8888889, 0.5714286  , 0.8571429, 1.0000000, 1.0000000, 1.0000000 ,0.4000000, 1.0000000 ,0.5714286,0.6666667,1.0000000, 0.5714286 ,0.8888889, 1.0000000, 1.0000000, 1.0000000,0.5714286, 0.6666667 , 1.0000000, 1.0000000  ,0.6666667, 0.8571429, 1.0000000, 0.8000000)
+
+df1 <- data.frame(category = all_classes, value = rf_f1score, type=rep("rf",length(rf_f1score)))
+df2<- data.frame(category = all_classes, value = lda_f1score, type=rep("lda",length(lda_f1score)))
+dff<-rbind(df1,df2)
+dff$type<-as.factor(dff$type)
+```
+
+
+```{r}
+# Create a histogram of the data
+hist1 <- ggplot(data=df3, aes(y=category, x=value) ) + geom_col()
+hist1 
+```
+
+```{r}
+# Create a histogram of the data
+hist2 <- ggplot(data=df4, aes(x=category, y=value)) + geom_col()
+hist2
+```
+
+```{r}
+df = data.frame(Block =all_classes, Rand_f =rf_f1score, LDA = lda_f1score)
+
+#Create a Matrix which will help in creating the plot
+value_matrix = matrix( nrow = 2, ncol =30)
+#An empty matrix is a necessary requirement prior to copying data
+value_matrix[1,] = df$Rand_f 
+value_matrix[2,] = df$LDA
+
+#Note that the "beside" argument has to be kept "TRUE" in order to place the bars side by side
+barplot(value_matrix, names.arg = df$Block, beside = TRUE, col = c("green", "blue"), legend.text = c("Rand_f", "LDA"))
+```
+
+```{r}
+library(data.table)
+#fwrite(dff, "f1_score.csv")
+df = data.frame(Block =all_classes, Rand_f =rf_f1score, LDA = lda_f1score)
+hist<-ggplot(dff)+ geom_col(mapping=aes(x=value, y=category,fill=type), width=0.5,   
+           position=position_dodge(0.7))+scale_fill_manual(values=c("green", "blue"), name = "Condition") #+geom_col(mapping=aes(x=LDA, y=Block), position = "dodge"),, 
+hist
+ggsave(hist, filename = "histogram.png")
+```
+
+
+
+## multinomial regression
+```{r}
+#install.packages("nnet")
+library(nnet) #for the learning multinomial regression
+
+model <- multinom(Species ~ ., data = train)
+predictions <- predict(model, test)
+confusion_matrix <- confusionMatrix(predictions, test$Species)
+accuracy <- confusion_matrix$overall[1]
+accuracy
+```
+
+## Support vector machine
+```{r}
+library(mlr)
+library(e1071) #for the learning SVM
+model <- svm(Species ~ ., data = train)
+predictions <- predict(model, test)
+confusion_matrix <- confusionMatrix(predictions, test$Species)
+accuracy <- confusion_matrix$overall[1]
+accuracy
+```
+
+## decision tree
+```{r}
+library(rpart)
+tree <- rpart(Species~., data=train)
+pred.test <-predict(tree, newdata=test, type="class")
+#accuracy
+#length(which(pred.test==test$Species))/length(pred.test)
+conf.matrix = table(pred.test, test$Species)
+sum(diag(conf.matrix))/sum(conf.matrix)
+```
+```
+
+
+
+
+
+
+
+
+
+
+
+

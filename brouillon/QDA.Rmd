@@ -1,0 +1,317 @@
+---
+title: "QDA"
+author: "MADON KENGNE Sirianne"
+date: "2022-12-19"
+output: html_document
+---
+
+## Topic:
+
+The goal is to propose a method for leaf identification based on the provided leaf attributes and using a proper unsupervised or supervised learning tool.
+
+```{r}
+#install.packages("tidyverse")
+library(tidyverse)
+```
+
+```{r}
+#install.packages("mlr", dependencies = TRUE)
+library(mlr)
+```
+
+```{r}
+#library(ggplot2)
+#library(cowplot)
+library(randomForest)
+library(MASS)
+```
+
+
+Let's read the data and see the first 6 rows.
+```{r}
+data <- read.csv("leaf.csv", header=FALSE)
+#head(data)
+```
+Let's give proper columns names to our data
+```{r}
+colnames(data) <- c("Species","Specimen Number","Eccentricity","AspectRatio","Elongation","Solidity","Stochastic_Convexity","Isoperimetric_Factor","Maximal_Indentation_Depth","Lobedness","Average_Intensity","Average_Contrast","Smoothness","Third_moment","Uniformity","Entropy")
+
+#names(data)
+```
+Let's give the proper name of species
+```{r}
+last_species_names<-c(1:15,22:36)
+new_species_names<-c("Quercus suber","Salix atrocinera","Populus nigra","Alnus sp.","Quercus robur",
+     "Crataegus monogyna","Ilex aquifolium","Nerium oleander","Betula pubescens",
+     "Tilia tomentosa","Acer palmatum","Celtis sp.","Corylus avellana","Castanea sativa","Populus alba",16:21,
+     "Primula vulgaris","Erodium sp.","Bougainvillea sp.","Arisarum vulgare","Euonymus japonicus","Ilex perado ssp. azorica",
+     "Magnolia soulangeana","Buxus sempervirens","Urtica dioica","Podocarpus sp.","Acca sellowiana","Hydrangea sp.","Pseudosasa japonica",
+     "Magnolia grandiflora","Geranium sp.")
+for(i in last_species_names){
+  data[data$Species == i,]$Species <-new_species_names[i] 
+} 
+
+#unique(data$Species)
+```
+
+let's delete the columns 2 because it is useless for what we want to do
+```{r}
+dat<-data[,-2]
+#head(dat)
+```
+
+
+```{r}
+dat$Species <- as.factor(dat$Species)
+#str(dat)
+```
+
+
+```{r}
+#summary(dat)
+```
+
+we will check the number available for each species
+```{r}
+#table(dat$Species)
+```
+
+Let partition our data by creating two independent samples.
+```{r}
+set.seed(42)
+ind<-sample(2, nrow(dat), replace=TRUE, prob=c(0.7,0.3))
+train<-dat[ind==1,]
+test<-dat[ind==2,]
+```
+
+
+```{r}
+# Load necessary libraries
+library(caret)
+library(randomForest)
+library(Boruta)
+
+
+# Split the data into training and test sets
+set.seed(123)
+train_index <- createDataPartition(dat$Species, p = 0.8, list = FALSE)
+train <- dat[train_index, ]
+test <- dat[-train_index, ]
+
+# Select the top 10 features using Boruta
+set.seed(456)
+boruta_results <- Boruta(Species ~ ., data = train, doTrace = 2)
+selected_features <- names(train)[boruta_results$finalDecision == "Confirmed"]
+
+# Train a random forest model using the selected features
+#model <- randomForest(species ~ ., data = train[, selected_features])
+
+# Make predictions on the test set
+#predictions <- predict(model, test[, selected_features])
+
+# Evaluate the model's performance
+#accuracy <- mean(predictions == test$Species)
+#print(accuracy)
+
+```
+```{r}
+selected_features
+```
+
+```{r}
+exists("makeFeatureSelectorReliefF", envir = as.environment("package:mlr"))
+```
+
+```{r}
+# Load necessary libraries
+library(cluster)
+
+# Use k-means clustering to group the data into 3 clusters
+kmeans_results <- kmeans(train[, -1], centers = 3)
+clusters <- kmeans_results$cluster
+
+# Train a random forest model to predict the cluster assignments
+model <- randomForest(clusters ~ ., data = train)
+
+# Make predictions on the test set
+predictions <- predict(model, test)
+
+# Assign each leaf to the most common species in its cluster
+leaf_species <- sapply(unique(predictions), function(x) {
+  cluster_species <- train$species[clusters == x]
+  names(which.max(table(cluster_species)))
+})
+
+# Evaluate the model's performance
+accuracy <- mean(leaf_species == test$species)
+print(accuracy)
+
+```
+
+```{r}
+#create a learner
+set.seed(12345)
+dataTask <- makeClassifTask(data = train, target = "Species")
+lda <- makeLearner("classif.lda")
+ldaModel <- train(lda, dataTask)
+```
+
+```{r}
+ldaModelData <- getLearnerModel(ldaModel)
+ldaPreds <- predict(ldaModelData)$x
+#head(ldaPreds)
+```
+
+```{r}
+train%>%
+mutate(LD1 = ldaPreds[, 1],
+LD2 = ldaPreds[, 2]) %>%
+ggplot(aes(LD1, LD2, col = Species)) +
+geom_point() +
+stat_ellipse() +
+theme_bw()
+```
+
+```{r}
+dataTask1 <- makeClassifTask(data = dat, target = "Species")
+kFold <- makeResampleDesc(method = "RepCV", folds = 4, reps = 50,
+stratify = TRUE)
+ldaCV <- resample(learner = lda, task = dataTask, resampling = kFold,
+measures = list(mmce, acc))
+```
+
+
+```{r}
+#conf.matrix<-calculateConfusionMatrix(ldaCV$pred, relative = FALSE)
+#sum(diag(conf.matrix))/sum(conf.matrix)
+
+```
+
+```{r}
+dataTask1 <- makeClassifTask(data = test, target = "Species")
+p2 <- predict(ldaModel, dataTask1)#$class$predictions
+#tab1 <- table(Predicted = p2, Actual = dataTask1$Species)
+#accuracy <- mean(p2== test$Species)
+#accuracy
+#attributes(p2)
+#sum(diag(tab1))/sum(tab1)
+#p2$error
+```
+
+
+
+
+
+
+
+
+
+
+
+
+
+```{r}
+library(klaR)
+library(psych)
+library(MASS)
+```
+
+# Quadratic Discriminant Analysis in R
+
+```{r}
+str(dat)
+```
+
+```{r}
+#attach iris dataset to make it easy to work with
+#attach(iris)
+
+#view structure of dataset
+#str(iris)
+set.seed(1)
+
+#Use 70% of dataset as training set and remaining 30% as testing set
+#sample <- sample(c(TRUE, FALSE), nrow(dat), replace=TRUE, prob=c(0.7,0.3))
+#train <dat[!sample, ] 
+#fit QDA model
+#model <- qda(Species~., data=dat)
+
+#view model output
+#model
+```
+
+```{r}
+#use QDA model to make predictions on test data
+#predicted <- predict(model, test)
+#find accuracy of model
+#mean(predicted$class==test$Species)
+#str(iris)
+```
+
+
+```{r}
+p2 <- predict(linear, testing)$class
+tab1 <- table(Predicted = p2, Actual = testing$Species)
+
+sum(diag(tab1))/sum(tab1)
+```
+
+
+```{r}
+accuracy <- mean(p2== test$Species)
+accuracy
+```
+
+```{r}
+#install.packages("nnet")
+library(nnet) #for the learning multinomial regression
+
+model <- multinom(Species ~ ., data = training)
+predictions <- predict(model, testing)
+confusion_matrix <- confusionMatrix(predictions, testing$Species)
+accuracy <- confusion_matrix$overall[1]
+accuracy
+```
+
+
+```{r}
+#install.packages("e1071")
+```
+
+```{r}
+library(e1071) #for the learning SVM
+model <- svm(Species ~ ., data = training)
+predictions <- predict(model, testing)
+confusion_matrix <- confusionMatrix(predictions, testing$Species)
+accuracy <- confusion_matrix$overall[1]
+accuracy
+```
+
+```{r}
+library(rpart)
+```
+
+```{r}
+tree <- rpart(Species~., data=train)
+tree
+plot(tree)
+text(tree)
+```
+
+```{r}
+pred.test <-predict(tree, newdata=test, type="class")
+length(pred.test)
+t <-table(test$Species, pred.test)
+t
+```
+
+```{r}
+length(which(pred.test!=test$Species))/length(pred.test)
+```
+
+```{r}
+conf.matrix = table(pred.test, test$Species)
+sum(diag(conf.matrix))/sum(conf.matrix)
+```
+
+
