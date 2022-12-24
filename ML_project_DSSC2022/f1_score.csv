@@ -1,0 +1,61 @@
+category,value,type
+Acca sellowiana,0.2857143,rf
+Acer palmatum,0.8888889,rf
+Alnus sp.,0.6666667,rf
+Arisarum vulgare,1,rf
+Betula pubescens,0.5714286,rf
+Bougainvillea sp.,0.6666667,rf
+Buxus sempervirens ,1,rf
+Castanea sativa,1,rf
+Celtis sp.,0.6666667,rf
+Corylus avellana,0.8888889,rf
+Crataegus monogyna,1,rf
+Erodium sp.,0.8571429,rf
+Euonymus japonicus,0.3333333,rf
+Geranium sp.,0.5,rf
+Hydrangea sp.,0.4444444,rf
+Ilex aquifolium,0.6666667,rf
+Ilex perado ssp. azorica,0.4,rf
+Magnolia grandiflora ,0.6666667,rf
+Magnolia soulangeana,0.4444444,rf
+Nerium oleander,1,rf
+Podocarpus sp.,1,rf
+Populus alba,0.6666667,rf
+Populus nigra ,0.6666667,rf
+Primula vulgaris ,0.8,rf
+Pseudosasa japonica,1,rf
+Quercus robur,1,rf
+Quercus suber,0.5454545,rf
+Salix atrocinera,0.8,rf
+Tilia tomentosa,0.8888889,rf
+Urtica dioica,1,rf
+Acca sellowiana,0.4444444,lda
+Acer palmatum,1,lda
+Alnus sp.,0.6666667,lda
+Arisarum vulgare,0,lda
+Betula pubescens,0.8888889,lda
+Bougainvillea sp.,0.6666667,lda
+Buxus sempervirens ,0.8888889,lda
+Castanea sativa,0.5714286,lda
+Celtis sp.,0.8571429,lda
+Corylus avellana,1,lda
+Crataegus monogyna,1,lda
+Erodium sp.,1,lda
+Euonymus japonicus,0.4,lda
+Geranium sp.,1,lda
+Hydrangea sp.,0.5714286,lda
+Ilex aquifolium,0.6666667,lda
+Ilex perado ssp. azorica,1,lda
+Magnolia grandiflora ,0.5714286,lda
+Magnolia soulangeana,0.8888889,lda
+Nerium oleander,1,lda
+Podocarpus sp.,1,lda
+Populus alba,1,lda
+Populus nigra ,0.5714286,lda
+Primula vulgaris ,0.6666667,lda
+Pseudosasa japonica,1,lda
+Quercus robur,1,lda
+Quercus suber,0.6666667,lda
+Salix atrocinera,0.8571429,lda
+Tilia tomentosa,1,lda
+Urtica dioica,0.8,lda
